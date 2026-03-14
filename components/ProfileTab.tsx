@@ -4,6 +4,107 @@ import { useState, useEffect } from "react";
 import { getUserProfile, saveUserProfile, type UserProfile } from "@/app/lib/userProfile";
 import Toast from "./Toast";
 
+const InputField = (props: {
+  label: string;
+  type?: string;
+  value?: any;
+  placeholder?: string;
+  onChange: (value: any) => void;
+}) => (
+  <div>
+    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">{props.label}</label>
+    <input
+      type={props.type || "text"}
+      value={props.value || ""}
+      placeholder={props.placeholder}
+      onChange={(e) => props.onChange(e.target.value)}
+      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-[#1e1e1e] dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+    />
+  </div>
+);
+
+const SelectField = (props: {
+  label: string;
+  value?: any;
+  options: { label: string; value: string }[];
+  onChange: (value: any) => void;
+}) => (
+  <div>
+    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">{props.label}</label>
+    <select
+      value={props.value || ""}
+      onChange={(e) => props.onChange(e.target.value)}
+      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-[#1e1e1e] dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+    >
+      <option value="">Select...</option>
+      {props.options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  </div>
+);
+
+const ArrayInputField = (props: {
+  label: string;
+  value?: string[];
+  placeholder?: string;
+  onChange: (value: string) => void;
+  helperText?: string;
+}) => (
+  <div>
+    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">{props.label}</label>
+    <textarea
+      value={(props.value || []).join(", ")}
+      placeholder={props.placeholder}
+      onChange={(e) => props.onChange(e.target.value)}
+      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-[#1e1e1e] dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+      rows={2}
+    />
+    {props.helperText && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{props.helperText}</p>}
+  </div>
+);
+
+interface ExpandableSectionProps {
+  title: string;
+  id: string;
+  icon: string;
+  children: React.ReactNode;
+  isExpanded: boolean;
+  onToggle: (id: string) => void;
+}
+
+const ExpandableSection = (props: ExpandableSectionProps) => (
+  <div className="rounded-xl bg-white dark:bg-[#141414] border border-black/8 dark:border-white/8 overflow-hidden">
+    <button
+      onClick={() => props.onToggle(props.id)}
+      className="w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">{props.icon}</span>
+          <h3 className="font-semibold">{props.title}</h3>
+        </div>
+        <svg
+          className={`w-5 h-5 text-gray-400 transition-transform ${props.isExpanded ? "rotate-180" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+        </svg>
+      </div>
+    </button>
+
+    {props.isExpanded && (
+      <div className="px-4 pb-4 space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+        {props.children}
+      </div>
+    )}
+  </div>
+);
+
 export default function ProfileTab() {
   const [profile, setProfile] = useState<UserProfile>({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -25,7 +126,7 @@ export default function ProfileTab() {
 
   const handleArrayChange = (field: keyof UserProfile, value: string) => {
     const currentArray = (profile[field] as string[]) || [];
-    const newArray = value.split(",").map((item) => item.trim());
+    const newArray = value.split(",").map((item) => item.trimStart()).filter((item) => item.length > 0);
     handleChange(field, newArray);
   };
 
@@ -34,101 +135,6 @@ export default function ProfileTab() {
     setHasChanges(false);
     setToast({ message: "Profile saved successfully!", type: "success" });
   };
-
-  const ExpandableSection = (props: {
-    title: string;
-    id: string;
-    icon: string;
-    children: React.ReactNode;
-  }) => (
-    <button
-      onClick={() => setExpandedSection(expandedSection === props.id ? "" : props.id)}
-      className="w-full"
-    >
-      <div className="p-4 rounded-xl bg-white dark:bg-[#141414] border border-black/8 dark:border-white/8 hover:border-primary/30 dark:hover:border-primary/30 transition-colors text-left">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-xl">{props.icon}</span>
-            <h3 className="font-semibold">{props.title}</h3>
-          </div>
-          <svg
-            className={`w-5 h-5 text-gray-400 transition-transform ${
-              expandedSection === props.id ? "rotate-180" : ""
-            }`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-          </svg>
-        </div>
-
-        {expandedSection === props.id && <div className="mt-4 space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4">{props.children}</div>}
-      </div>
-    </button>
-  );
-
-  const InputField = (props: {
-    label: string;
-    type?: string;
-    value?: any;
-    placeholder?: string;
-    onChange: (value: any) => void;
-  }) => (
-    <div>
-      <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">{props.label}</label>
-      <input
-        type={props.type || "text"}
-        value={props.value || ""}
-        placeholder={props.placeholder}
-        onChange={(e) => props.onChange(e.target.value)}
-        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-[#1e1e1e] dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-      />
-    </div>
-  );
-
-  const SelectField = (props: {
-    label: string;
-    value?: any;
-    options: { label: string; value: string }[];
-    onChange: (value: any) => void;
-  }) => (
-    <div>
-      <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">{props.label}</label>
-      <select
-        value={props.value || ""}
-        onChange={(e) => props.onChange(e.target.value)}
-        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-[#1e1e1e] dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-      >
-        <option value="">Select...</option>
-        {props.options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-
-  const ArrayInputField = (props: {
-    label: string;
-    value?: string[];
-    placeholder?: string;
-    onChange: (value: string) => void;
-    helperText?: string;
-  }) => (
-    <div>
-      <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">{props.label}</label>
-      <textarea
-        value={(props.value || []).join(", ")}
-        placeholder={props.placeholder}
-        onChange={(e) => props.onChange(e.target.value)}
-        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-[#1e1e1e] dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-        rows={2}
-      />
-      {props.helperText && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{props.helperText}</p>}
-    </div>
-  );
 
   return (
     <div className="pb-28 px-4 pt-4">
@@ -139,15 +145,15 @@ export default function ProfileTab() {
 
       <div className="space-y-3 mb-6">
         {/* Basic Information */}
-        <ExpandableSection title="Basic Information" id="basic" icon="👤">
+        <ExpandableSection title="Basic Information" id="basic" icon="👤" isExpanded={expandedSection === "basic"} onToggle={() => setExpandedSection(expandedSection === "basic" ? "" : "basic")}>
           <InputField label="Name" value={profile.name} onChange={(v) => handleChange("name", v)} placeholder="Your name" />
 
           <div className="grid grid-cols-2 gap-3">
             <InputField
               label="Age"
               type="number"
-              value={profile.age}
-              onChange={(v) => handleChange("age", v ? parseInt(v, 10) : "")}
+              value={profile.age || ""}
+              onChange={(v) => handleChange("age", v === "" ? undefined : parseInt(v, 10))}
               placeholder="Years"
             />
             <SelectField
@@ -164,27 +170,27 @@ export default function ProfileTab() {
         </ExpandableSection>
 
         {/* Physical Metrics */}
-        <ExpandableSection title="Physical Metrics" id="metrics" icon="📏">
+        <ExpandableSection title="Physical Metrics" id="metrics" icon="📏" isExpanded={expandedSection === "metrics"} onToggle={() => setExpandedSection(expandedSection === "metrics" ? "" : "metrics")}>
           <div className="grid grid-cols-2 gap-3">
             <InputField
               label="Height (cm)"
               type="number"
-              value={profile.height}
-              onChange={(v) => handleChange("height", v ? parseInt(v, 10) : "")}
+              value={profile.height || ""}
+              onChange={(v) => handleChange("height", v === "" ? undefined : parseInt(v, 10))}
               placeholder="e.g., 180"
             />
             <InputField
               label="Weight (kg)"
               type="number"
-              value={profile.weight}
-              onChange={(v) => handleChange("weight", v ? parseFloat(v) : "")}
+              value={profile.weight || ""}
+              onChange={(v) => handleChange("weight", v === "" ? undefined : parseFloat(v))}
               placeholder="e.g., 75.5"
             />
           </div>
         </ExpandableSection>
 
         {/* Fitness Profile */}
-        <ExpandableSection title="Fitness Profile" id="fitness" icon="💪">
+        <ExpandableSection title="Fitness Profile" id="fitness" icon="💪" isExpanded={expandedSection === "fitness"} onToggle={() => setExpandedSection(expandedSection === "fitness" ? "" : "fitness")}>
           <SelectField
             label="Fitness Level"
             value={profile.fitnessLevel}
@@ -199,16 +205,16 @@ export default function ProfileTab() {
           <InputField
             label="Years of Training Experience"
             type="number"
-            value={profile.yearsOfTraining}
-            onChange={(v) => handleChange("yearsOfTraining", v ? parseInt(v, 10) : "")}
+            value={profile.yearsOfTraining || ""}
+            onChange={(v) => handleChange("yearsOfTraining", v === "" ? undefined : parseInt(v, 10))}
             placeholder="e.g., 3"
           />
 
           <InputField
             label="Available Training Hours per Week"
             type="number"
-            value={profile.availableHoursPerWeek}
-            onChange={(v) => handleChange("availableHoursPerWeek", v ? parseFloat(v) : "")}
+            value={profile.availableHoursPerWeek || ""}
+            onChange={(v) => handleChange("availableHoursPerWeek", v === "" ? undefined : parseFloat(v))}
             placeholder="e.g., 5"
           />
 
@@ -230,7 +236,7 @@ export default function ProfileTab() {
         </ExpandableSection>
 
         {/* Goals */}
-        <ExpandableSection title="Goals" id="goals" icon="🎯">
+        <ExpandableSection title="Goals" id="goals" icon="🎯" isExpanded={expandedSection === "goals"} onToggle={() => setExpandedSection(expandedSection === "goals" ? "" : "goals")}>
           <InputField
             label="Primary Goal"
             value={profile.primaryGoal}
@@ -248,7 +254,7 @@ export default function ProfileTab() {
         </ExpandableSection>
 
         {/* Health Information */}
-        <ExpandableSection title="Health Information" id="health" icon="🏥">
+        <ExpandableSection title="Health Information" id="health" icon="🏥" isExpanded={expandedSection === "health"} onToggle={() => setExpandedSection(expandedSection === "health" ? "" : "health")}>
           <ArrayInputField
             label="Previous Injuries"
             value={profile.injuries}
@@ -283,7 +289,7 @@ export default function ProfileTab() {
         </ExpandableSection>
 
         {/* Restrictions */}
-        <ExpandableSection title="Restrictions & Preferences" id="restrictions" icon="⚠️">
+        <ExpandableSection title="Restrictions & Preferences" id="restrictions" icon="⚠️" isExpanded={expandedSection === "restrictions"} onToggle={() => setExpandedSection(expandedSection === "restrictions" ? "" : "restrictions")}>
           <ArrayInputField
             label="Exercises to Avoid"
             value={profile.restrictions}
