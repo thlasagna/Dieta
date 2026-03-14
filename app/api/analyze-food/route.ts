@@ -8,9 +8,12 @@ const SYSTEM_PROMPT = `You are a nutrition analysis assistant. Analyze the food 
   "macros": { "protein": number, "carbs": number, "fat": number, "fiber": number },
   "vitamins": { "a": "low"|"medium"|"high", "c": "low"|"medium"|"high", "d": "low"|"medium"|"high", "b12": "low"|"medium"|"high", "iron": "low"|"medium"|"high", "calcium": "low"|"medium"|"high", "omega3": "low"|"medium"|"high", "zinc": "low"|"medium"|"high" },
   "portionNote": "string",
-  "healthScore": number
+  "healthScore": number,
+  "analysis": [{ "text": "string", "type": "good"|"neutral"|"bad" }]
 }
-For vitamins use "low", "medium", or "high". healthScore is 1-10. portionNote is a short plain-English note about portion uncertainty.`;
+For vitamins use "low", "medium", or "high". healthScore is 1-10. portionNote is a short plain-English note about portion uncertainty.
+
+For "analysis": Write a short paragraph (2-4 sentences) in simple language explaining what's good, neutral, and potentially bad about this meal. Break it into segments: use type "good" for beneficial aspects (e.g. protein, fiber, vitamins), "neutral" for context/connectors, and "bad" for concerns (e.g. high sodium, saturated fat, lack of veggies). Each segment is one phrase or clause. Example: [{"text":"This meal offers ","type":"neutral"},{"text":"solid protein for muscle repair","type":"good"},{"text":". ","type":"neutral"},{"text":"It's high in saturated fat","type":"bad"},{"text":", so enjoy in moderation.","type":"neutral"}]`;
 
 export async function POST(request: NextRequest) {
   try {

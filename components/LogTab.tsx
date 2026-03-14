@@ -5,6 +5,7 @@ import type { FoodAnalysisResult, MealEntry, Macros, Vitamins } from "@/app/type
 import { saveMeal, getTodayMeals, addXP } from "@/app/lib/storage";
 import { checkAchievementsAfterLog } from "@/app/lib/achievements";
 import MealResultCard from "./MealResultCard";
+import MealDetailPopup from "./MealDetailPopup";
 import Toast from "./Toast";
 
 type InputMode = "photo" | "text";
@@ -24,6 +25,7 @@ export default function LogTab() {
     xpReward: number;
   } | null>(null);
   const [todayMeals, setTodayMeals] = useState<MealEntry[]>([]);
+  const [selectedMeal, setSelectedMeal] = useState<MealEntry | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refreshTodayMeals = useCallback(() => {
@@ -119,6 +121,7 @@ export default function LogTab() {
       vitamins: result.vitamins,
       healthScore: result.healthScore,
       portionNote: result.portionNote,
+      analysis: result.analysis,
       imageBase64: imageBase64 || undefined,
     };
 
@@ -273,30 +276,37 @@ export default function LogTab() {
 
       {/* Today's meals */}
       <div className="mt-8">
-        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Today&apos;s meals</h2>
+        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Today&apos;s meals — tap to view details</h2>
         {todayMeals.length === 0 ? (
           <p className="text-sm text-gray-400 dark:text-gray-500">No meals logged today</p>
         ) : (
           <ul className="space-y-2">
             {todayMeals.map((m) => (
-              <li
-                key={m.id}
-                className="flex justify-between items-center py-2 px-3 rounded-xl bg-white dark:bg-[#141414] border border-black/8 dark:border-white/8"
-              >
-                <span className="text-sm truncate flex-1">{m.foods.join(", ")}</span>
-                <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                  {new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ~{m.calories} kcal
-                </span>
+              <li key={m.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedMeal(m)}
+                  className="w-full flex justify-between items-center py-2 px-3 rounded-xl bg-white dark:bg-[#141414] border border-black/8 dark:border-white/8 text-left active:scale-[0.99] hover:border-primary/30 transition-colors"
+                >
+                  <span className="text-sm truncate flex-1">{m.foods.join(", ")}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400 ml-2 shrink-0">
+                    {new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ~{m.calories} kcal
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
         )}
       </div>
 
+      {selectedMeal && (
+        <MealDetailPopup meal={selectedMeal} onClose={() => setSelectedMeal(null)} />
+      )}
+
       {toast && <Toast message={toast.message} onClose={() => setToast(null)} />}
 
       {achievementOverlay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-fade-in">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 animate-fade-in p-4 pb-[calc(80px+env(safe-area-inset-bottom,0px))]">
           <div className="mx-4 p-6 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-white/10 text-center animate-slide-up">
             <span className="text-5xl block mb-2">{achievementOverlay.icon}</span>
             <h3 className="text-lg font-semibold">{achievementOverlay.name}</h3>

@@ -28,8 +28,14 @@ export interface MealEntry {
   healthScore: number;
   imageBase64?: string;
   portionNote?: string;
+  analysis?: AnalysisSegment[];
   fromSuggestion?: boolean;
   symptomContext?: string[];
+}
+
+export interface AnalysisSegment {
+  text: string;
+  type: "good" | "neutral" | "bad";
 }
 
 export interface FoodAnalysisResult {
@@ -39,4 +45,5 @@ export interface FoodAnalysisResult {
   vitamins: Vitamins;
   portionNote: string;
   healthScore: number;
+  analysis?: AnalysisSegment[];
 }

@@ -322,7 +322,7 @@ export default function SuggestTab() {
       </div>
 
       {achievementOverlay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-fade-in">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 animate-fade-in p-4 pb-[calc(80px+env(safe-area-inset-bottom,0px))]">
           <div className="mx-4 p-6 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-white/10 text-center animate-slide-up">
             <span className="text-5xl block mb-2">{achievementOverlay.icon}</span>
             <h3 className="text-lg font-semibold">{achievementOverlay.name}</h3>

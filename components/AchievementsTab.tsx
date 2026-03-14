@@ -9,6 +9,7 @@ const LEVEL_THRESHOLDS = [0, 200, 500, 1000, 2000];
 export default function AchievementsTab() {
   const [xpState, setXpState] = useState({ total: 0, level: 1 });
   const [unlocked, setUnlocked] = useState<string[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     setXpState(getXP());
@@ -49,9 +50,11 @@ export default function AchievementsTab() {
         {ACHIEVEMENTS.map((a) => {
           const isUnlocked = unlocked.includes(a.id);
           return (
-            <div
+            <button
               key={a.id}
-              className={`p-3 rounded-2xl border flex flex-col items-center text-center min-h-[100px] ${
+              type="button"
+              onClick={() => setExpandedId(a.id)}
+              className={`p-3 rounded-2xl border flex flex-col items-center text-center min-h-[100px] active:scale-[0.98] ${
                 isUnlocked
                   ? "bg-white dark:bg-[#141414] border-black/8 dark:border-white/8"
                   : "bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-800 opacity-75"
@@ -69,10 +72,62 @@ export default function AchievementsTab() {
                   +{a.xpReward} XP
                 </span>
               )}
-            </div>
+              <span className="text-[9px] text-gray-400 mt-1">tap for details</span>
+            </button>
           );
         })}
       </div>
+
+      {/* Achievement detail popup */}
+      {expandedId && (() => {
+        const a = ACHIEVEMENTS.find((x) => x.id === expandedId);
+        if (!a) return null;
+        const isUnlocked = unlocked.includes(a.id);
+        return (
+          <div
+            className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 animate-fade-in pb-[calc(60px+env(safe-area-inset-bottom,0px))] sm:pb-0"
+            onClick={() => setExpandedId(null)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === "Escape" && setExpandedId(null)}
+            aria-label="Close"
+          >
+            <div
+              className="w-full max-w-[390px] rounded-t-2xl sm:rounded-2xl bg-white dark:bg-[#1a1a1a] border-t sm:border border-white/10 p-6 pb-8 animate-slide-up"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-5xl">{a.icon}</span>
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(null)}
+                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <h3 className="text-lg font-semibold mb-2">{a.name}</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+                {a.description}
+              </p>
+              <div className="flex items-center gap-2">
+                {isUnlocked ? (
+                  <span className="px-3 py-1.5 rounded-full bg-primary/20 text-primary text-sm font-medium">
+                    ✓ Unlocked
+                  </span>
+                ) : (
+                  <span className="px-3 py-1.5 rounded-full bg-xp/20 text-xp text-sm font-medium">
+                    +{a.xpReward} XP to unlock
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

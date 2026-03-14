@@ -49,6 +49,28 @@ export default function MealResultCard({ result, onLog, onReset }: MealResultCar
         ~{calLow}–{calHigh} kcal
       </p>
 
+      {/* AI analysis paragraph */}
+      {result.analysis && result.analysis.length > 0 && (
+        <div className="mb-4 p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-black/5 dark:border-white/5">
+          <p className="text-sm leading-relaxed">
+            {result.analysis.map((seg, i) => (
+              <span
+                key={i}
+                className={
+                  seg.type === "good"
+                    ? "text-green-600 dark:text-green-400 font-medium"
+                    : seg.type === "bad"
+                    ? "text-danger font-medium"
+                    : "text-gray-800 dark:text-white"
+                }
+              >
+                {seg.text}
+              </span>
+            ))}
+          </p>
+        </div>
+      )}
+
       {/* Macro bars */}
       <div className="space-y-2 mb-4">
         <div className="flex items-center gap-2">
