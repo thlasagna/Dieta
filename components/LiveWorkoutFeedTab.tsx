@@ -22,8 +22,10 @@ export default function LiveWorkoutFeedTab() {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const frameIntervalRef = useRef<NodeJS.Timeout>();
+  const isAnalyzingRef = useRef(false);
   
   const userProfile = getUserProfile();
 
@@ -31,7 +33,7 @@ export default function LiveWorkoutFeedTab() {
   const handleEnableCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } 
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 360 } } 
       });
       streamRef.current = stream;
       if (videoRef.current) {
@@ -44,6 +46,60 @@ export default function LiveWorkoutFeedTab() {
       alert("Camera access is required for exercise tracking");
     }
   };
+
+  const drawKeypoints = (kpts: number[][], ctx: CanvasRenderingContext2D) => {
+    if (!kpts || kpts.length === 0) return;
+
+    const connections = [
+      [5, 6], [5, 7], [7, 9], [6, 8], [8, 10],
+      [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+      [5, 11], [6, 12]
+    ];
+
+    const baseWidth = 640;
+    const baseHeight = 360;
+    const scaleX = ctx.canvas.width / baseWidth;
+    const scaleY = ctx.canvas.height / baseHeight;
+
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+    ctx.lineWidth = 6;
+
+    connections.forEach(([a, b]) => {
+      const Pa = kpts[a];
+      const Pb = kpts[b];
+      if (!Pa || !Pb) return;
+      const confThreshold = 0.2;
+      if (Pa[2] < confThreshold || Pb[2] < confThreshold) return;
+
+      ctx.strokeStyle = "rgba(0, 255, 255, 0.8)";
+      ctx.beginPath();
+      ctx.moveTo(Pa[0] * scaleX, Pa[1] * scaleY);
+      ctx.lineTo(Pb[0] * scaleX, Pb[1] * scaleY);
+      ctx.stroke();
+    });
+
+    kpts.forEach((kp) => {
+      if (!kp) return;
+      const [x, y, c] = kp;
+      if (c < 0.2) return;
+      ctx.fillStyle = "rgba(255, 0, 0, 0.8)";
+      ctx.beginPath();
+      ctx.arc(x * scaleX, y * scaleY, 6, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  };
+
+  useEffect(() => {
+    if (!overlayRef.current) return;
+    const ctx = overlayRef.current.getContext("2d");
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
+    if (feedback?.kpts && Array.isArray(feedback.kpts) && feedback.kpts.length > 0) {
+      drawKeypoints(feedback.kpts as number[][], ctx);
+    }
+  }, [feedback]);
 
   // Start recording and analyzing exercises
   const handleStartRecording = async () => {
@@ -71,19 +127,24 @@ export default function LiveWorkoutFeedTab() {
       // Give video time to be ready
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Process frames every 333ms for better performance (3 FPS analysis)
+      // Process frames every 250ms for better responsiveness; skip while previous request is processing
       frameIntervalRef.current = setInterval(async () => {
+        if (isAnalyzingRef.current) {
+          return;
+        }
+
         if (videoRef.current && canvasRef.current) {
           const context = canvasRef.current.getContext("2d");
           if (context && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+            isAnalyzingRef.current = true;
             try {
               context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
-              const frameData = canvasRef.current.toDataURL("image/jpeg", 0.8);
+              const frameData = canvasRef.current.toDataURL("image/jpeg", 0.7);
 
               const response = await fetch("http://localhost:5000/api/exercise/analyze", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ frame: frameData }),
+                body: JSON.stringify({ frame: frameData, annotate: false }),
               });
 
               if (response.ok) {
@@ -94,10 +155,12 @@ export default function LiveWorkoutFeedTab() {
               }
             } catch (error) {
               console.error("Frame analysis error:", error);
+            } finally {
+              isAnalyzingRef.current = false;
             }
           }
         }
-      }, 333);
+      }, 250);
     } catch (error) {
       console.error("Error starting recording:", error);
       setConnectionError(error instanceof Error ? error.message : "Failed to start exercise tracking");
@@ -186,28 +249,34 @@ export default function LiveWorkoutFeedTab() {
             playsInline
             muted
             className={`absolute inset-0 w-full h-full object-cover ${
-              hasVideoAccess && !isRecording ? "opacity-100" : "opacity-0"
+              hasVideoAccess ? "opacity-100" : "opacity-0"
             } transition-opacity`}
           />
 
-          {/* Annotated Frame Overlay (when recording and feedback available) */}
-          {isRecording && feedback?.annotated_frame ? (
-            <img
-              src={feedback.annotated_frame}
-              alt="Annotated exercise frame"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          ) : isRecording && !feedback?.annotated_frame ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-              <p className="text-white text-sm">Analyzing pose...</p>
+          {/* Live overlay of keypoints & skeleton */}
+          <canvas
+            ref={overlayRef}
+            width={1280}
+            height={720}
+            className="absolute inset-0 w-full h-full pointer-events-none"
+          />
+
+          {isRecording && (
+            <div className="absolute top-4 left-4 bg-black/40 text-white text-xs px-2 py-1 rounded">
+              {feedback?.status ? `${feedback.status}` : "Analyzing pose..."}
             </div>
-          ) : null}
+          )}
+          {isRecording && feedback?.issues && feedback.issues.length > 0 && (
+            <div className="absolute bottom-4 left-4 bg-black/40 text-white text-xs px-2 py-1 rounded max-w-[80%]">
+              <p>{feedback.issues[0]}</p>
+            </div>
+          )}
 
           {/* Canvas for frame capture (hidden) */}
           <canvas 
             ref={canvasRef} 
-            width={1280} 
-            height={720} 
+            width={640} 
+            height={360} 
             className="hidden" 
           />
 

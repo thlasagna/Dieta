@@ -61,16 +61,16 @@ def analyze_pushup(kpts, frame):
 
     # Draw skeleton on frame
     # Draw body line (shoulder to hip to ankle)
-    cv2.line(frame, tuple(sh[:2].astype(int)), tuple(hip[:2].astype(int)), color, 3)
-    cv2.line(frame, tuple(hip[:2].astype(int)), tuple(ankle[:2].astype(int)), color, 3)
+    cv2.line(frame, tuple(sh[:2].astype(int)), tuple(hip[:2].astype(int)), color, 8)
+    cv2.line(frame, tuple(hip[:2].astype(int)), tuple(ankle[:2].astype(int)), color, 8)
     
     # Draw arm (shoulder to elbow to wrist)
-    cv2.line(frame, tuple(sh[:2].astype(int)), tuple(el[:2].astype(int)), color, 3)
-    cv2.line(frame, tuple(el[:2].astype(int)), tuple(wr[:2].astype(int)), color, 3)
+    cv2.line(frame, tuple(sh[:2].astype(int)), tuple(el[:2].astype(int)), color, 6)
+    cv2.line(frame, tuple(el[:2].astype(int)), tuple(wr[:2].astype(int)), color, 6)
     
     # Draw legs
-    cv2.line(frame, tuple(hip[:2].astype(int)), tuple(knee[:2].astype(int)), color, 3)
-    cv2.line(frame, tuple(knee[:2].astype(int)), tuple(ankle[:2].astype(int)), color, 3)
+    cv2.line(frame, tuple(hip[:2].astype(int)), tuple(knee[:2].astype(int)), color, 6)
+    cv2.line(frame, tuple(knee[:2].astype(int)), tuple(ankle[:2].astype(int)), color, 6)
     
     # Draw joints as circles
     for joint in [sh, el, wr, hip, knee, ankle]:
@@ -134,17 +134,17 @@ def analyze_lunge(kpts, frame):
     # Draw skeleton on frame
     # Draw torso
     torso_color = (0, 255, 0) if torso_ok else (0, 0, 255)
-    cv2.line(frame, (int(sh_mid_x), int(sh_mid_y)), (int(hip_mid_x), int(hip_mid_y)), torso_color, 4)
+    cv2.line(frame, (int(sh_mid_x), int(sh_mid_y)), (int(hip_mid_x), int(hip_mid_y)), torso_color, 10)
     
     # Draw left leg
     left_leg_color = (0, 255, 0) if leg_ok else (0, 0, 255)
-    cv2.line(frame, tuple(l_hip[:2].astype(int)), tuple(l_knee[:2].astype(int)), left_leg_color, 3)
-    cv2.line(frame, tuple(l_knee[:2].astype(int)), tuple(l_ankle[:2].astype(int)), left_leg_color, 3)
+    cv2.line(frame, tuple(l_hip[:2].astype(int)), tuple(l_knee[:2].astype(int)), left_leg_color, 8)
+    cv2.line(frame, tuple(l_knee[:2].astype(int)), tuple(l_ankle[:2].astype(int)), left_leg_color, 8)
     
     # Draw right leg
     right_leg_color = (0, 255, 0) if leg_ok else (0, 0, 255)
-    cv2.line(frame, tuple(r_hip[:2].astype(int)), tuple(r_knee[:2].astype(int)), right_leg_color, 3)
-    cv2.line(frame, tuple(r_knee[:2].astype(int)), tuple(r_ankle[:2].astype(int)), right_leg_color, 3)
+    cv2.line(frame, tuple(r_hip[:2].astype(int)), tuple(r_knee[:2].astype(int)), right_leg_color, 8)
+    cv2.line(frame, tuple(r_knee[:2].astype(int)), tuple(r_ankle[:2].astype(int)), right_leg_color, 8)
     
     # Draw joints as circles
     for joint in [l_hip, r_hip, l_knee, r_knee, l_ankle, r_ankle, l_sh, r_sh]:
@@ -203,61 +203,63 @@ def start_exercise():
 
 @app.route('/api/exercise/analyze', methods=['POST'])
 def analyze_frame():
-    """Analyze a single frame"""
-    global current_mode, pose_history
+    global current_mode, pose_history, rep_count
     
     try:
         data = request.json
         image_data = data.get('frame')
-        
         if not image_data:
             return jsonify({"error": "No frame provided"}), 400
         
-        # Decode image from base64
+        # Decode and Resize
         image_bytes = base64.b64decode(image_data.split(',')[1])
         image = Image.open(BytesIO(image_bytes))
         frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         
-        # Resize for faster processing (smaller size = faster inference)
         h, w = frame.shape[:2]
-        scale_factor = 0.75
+        scale_factor = 0.5
         frame_resized = cv2.resize(frame, (int(w * scale_factor), int(h * scale_factor)))
         
-        # Run YOLO inference on GPU with optimized parameters
-        results = model(frame_resized, device=device, imgsz=416, conf=0.35, verbose=False, half=True)
+        # Inference
+        results = model(frame_resized, device=device, imgsz=320, conf=0.35, verbose=False, half=True)
         
         feedback = None
+        current_kpts = None # Initialize to avoid UnboundLocalError
+
         for r in results:
             if r.keypoints is not None and len(r.keypoints.data) > 0:
                 raw_kpts = r.keypoints.data[0].cpu().numpy()
-                # Scale keypoints back to original size
                 raw_kpts[:, :2] = raw_kpts[:, :2] / scale_factor
                 
                 pose_history.append(raw_kpts)
-                kpts = np.mean(pose_history, axis=0) if len(pose_history) > 0 else raw_kpts
+                current_kpts = np.mean(pose_history, axis=0)
                 
                 if current_mode == "LUNGE":
-                    feedback = analyze_lunge(kpts, frame)
+                    feedback = analyze_lunge(current_kpts, frame)
                 elif current_mode == "PUSHUP":
-                    feedback = analyze_pushup(kpts, frame)
+                    feedback = analyze_pushup(current_kpts, frame)
                 break
         
-        if feedback is None:
-            feedback = {
+        # Safety Check: If no one was detected
+        if feedback is None or current_kpts is None:
+            return jsonify({
+                "kpts": [], 
                 "status": "No person detected",
-                "severity": "high",
-                "issues": ["Please ensure you're visible in the frame"]
-            }
-        
-        # Convert annotated frame to base64 with reduced quality for faster transmission
-        _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
-        frame_base64 = base64.b64encode(buffer).decode('utf-8')
-        feedback['annotated_frame'] = f"data:image/jpeg;base64,{frame_base64}"
-        
-        return jsonify(feedback)
+                "reps": rep_count
+            })
+
+        # Successful Return (no annotated image from backend to reduce latency)
+        return jsonify({
+            "kpts": current_kpts.tolist(),
+            "status": feedback.get("status", "Active"),
+            "severity": feedback.get("severity", "low"),
+            "issues": feedback.get("issues", []),
+            "angles": feedback.get("angles", {}),
+            "reps": rep_count
+        })
     
     except Exception as e:
-        print(f"Error: {str(e)}")
+        print(f"Error in analyze_frame: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/exercise/reset', methods=['POST'])
