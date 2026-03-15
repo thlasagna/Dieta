@@ -20,8 +20,6 @@ model = YOLO('yolov8n-pose.pt')
 
 # Global state
 current_mode = "LUNGE"
-rep_count = 0
-stage = "UP"
 running = True
 
 # Thread-safe queues
@@ -46,8 +44,6 @@ def calculate_angle(a, b, c):
 
 def analyze_pushup(kpts, frame):
     """Analyze pushup form and return feedback"""
-    global rep_count, stage
-    
     # 5: Shoulder, 7: Elbow, 9: Wrist, 11: Hip, 13: Knee, 15: Ankle
     sh, el, wr = kpts[5], kpts[7], kpts[9]
     hip, knee, ankle = kpts[11], kpts[13], kpts[15]
@@ -70,20 +66,12 @@ def analyze_pushup(kpts, frame):
         status = "Straighten Legs"
         color = (0, 0, 255)
 
-    # Rep counter logic
-    if arm_angle < 110 and stage == "UP":
-        stage = "DOWN"
-    if arm_angle > 150 and stage == "DOWN":
-        stage = "UP"
-        rep_count += 1
-
     # Return analysis data (not drawing on frame here)
     return {
         "status": status,
         "color": color,
         "angles": {"arm": arm_angle, "body": body_angle, "leg": leg_angle},
-        "keypoints": kpts,
-        "reps": rep_count
+        "keypoints": kpts
     }
 
 
@@ -108,7 +96,8 @@ def analyze_lunge(kpts, frame):
     # Leg analysis
     l_angle = calculate_angle(l_hip, l_knee, l_ankle)
     r_angle = calculate_angle(r_hip, r_knee, r_ankle)
-    leg_color = (0, 255, 0) if min(l_angle, r_angle) > 75 else (0, 0, 255)
+    min_angle = min(l_angle, r_angle)
+    leg_color = (0, 255, 0) if min_angle > 75 else (0, 0, 255)
 
     # Return analysis data (not drawing on frame here)
     return {
@@ -116,8 +105,7 @@ def analyze_lunge(kpts, frame):
         "color": leg_color,
         "angles": {"left": l_angle, "right": r_angle, "lean": lean_diff},
         "keypoints": kpts,
-        "torso_ok": abs(lean_diff) <= 40,
-        "reps": rep_count
+        "torso_ok": abs(lean_diff) <= 40
     }
 
 
@@ -167,12 +155,46 @@ def draw_skeleton(frame, analysis):
         for joint in [l_hip, r_hip, l_knee, r_knee, l_ankle, r_ankle, l_sh, r_sh]:
             cv2.circle(frame, tuple(joint[:2].astype(int)), 5, leg_color, -1)
 
-        # Draw text info
-        cv2.rectangle(frame, (10, 10), (450, 100), (0, 0, 0), -1)
-        min_angle = min(analysis["angles"]["left"], analysis["angles"]["right"])
-        cv2.putText(frame, f"LUNGE DEPTH: {int(min_angle)}°", (20, 45), cv2.FONT_HERSHEY_SIMPLEX, 1.2, leg_color, 2)
-        cv2.putText(frame, f"TORSO: {'FIX' if torso_color == (0,0,255) else 'OK'}", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1.2, torso_color, 2)
+    return frame
 
+
+def draw_angle_panel(frame, analysis, mode):
+    """Draw a compact panel with relevant joint angle calculations"""
+    if analysis is None:
+        return frame
+    
+    angles = analysis.get("angles", {})
+    panel_width = 200
+    panel_height = 90
+    x, y = 8, 8
+    
+    # Draw semi-transparent background panel
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (x, y), (x + panel_width, y + panel_height), (0, 0, 0), -1)
+    cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+    
+    # Draw border
+    cv2.rectangle(frame, (x, y), (x + panel_width, y + panel_height), (200, 200, 200), 1)
+    
+    # Draw title (smaller font)
+    cv2.putText(frame, f"{mode}", (x + 8, y + 20), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    
+    # Draw angles based on exercise type (smaller fonts)
+    if mode == "PUSHUP" and angles:
+        cv2.putText(frame, f"Arm: {int(angles.get('arm', 0))}°", 
+                    (x + 8, y + 38), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 255, 100), 1)
+        cv2.putText(frame, f"Body: {int(angles.get('body', 0))}°", 
+                    (x + 8, y + 54), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 255, 100), 1)
+        cv2.putText(frame, f"Leg: {int(angles.get('leg', 0))}°", 
+                    (x + 8, y + 70), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 255, 100), 1)
+    
+    elif mode == "LUNGE" and angles:
+        cv2.putText(frame, f"L: {int(angles.get('left', 0))}° R: {int(angles.get('right', 0))}°", 
+                    (x + 8, y + 38), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 255, 100), 1)
+        cv2.putText(frame, f"Lean: {int(angles.get('lean', 0))}px", 
+                    (x + 8, y + 54), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 255, 100), 1)
+    
     return frame
 
 
@@ -281,9 +303,10 @@ def render_loop():
             if latest_analysis is not None:
                 display_frame = draw_skeleton(display_frame, latest_analysis)
             
-            # Draw mode and rep count
-            cv2.putText(display_frame, f"Mode: {current_mode} | Reps: {rep_count}", 
-                       (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            # Draw angle panel
+            display_frame = draw_angle_panel(display_frame, latest_analysis, current_mode)
+            
+            # Draw instructions
             cv2.putText(display_frame, "Press '1'=Lunge '2'=Pushup 'q'=Quit", 
                        (10, display_frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1)
             

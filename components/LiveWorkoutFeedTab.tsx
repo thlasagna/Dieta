@@ -5,8 +5,10 @@ import { getUserProfile } from "@/app/lib/userProfile";
 
 interface ExerciseFeedback {
   mode: string;
-  reps: number;
   stage: string;
+  aiScore?: number;
+  coaches?: string[];
+  depth?: number;
 }
 
 export default function LiveWorkoutFeedTab() {
@@ -34,7 +36,10 @@ export default function LiveWorkoutFeedTab() {
       const startResponse = await fetch("http://localhost:5000/api/exercise/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ exercise: exerciseType }),
+        body: JSON.stringify({ 
+          exercise: exerciseType,
+          userProfile: userProfile  // Send user profile for AI analysis
+        }),
       });
 
       if (!startResponse.ok) {
@@ -174,14 +179,7 @@ export default function LiveWorkoutFeedTab() {
                 <span className="text-sm font-semibold text-white">LIVE</span>
               </div>
 
-              {/* Stats Overlay */}
-              {feedback && (
-                <div className="absolute bottom-4 left-4 bg-black/60 rounded-lg p-4 text-white z-10 max-w-xs">
-                  <p className="text-lg font-bold mb-2">{feedback.mode}</p>
-                  <p className="text-3xl font-bold text-green-400">{feedback.reps} Reps</p>
-                  <p className="text-xs text-gray-300 mt-1">Stage: {feedback.stage}</p>
-                </div>
-              )}
+
             </>
           )}
 
@@ -192,6 +190,56 @@ export default function LiveWorkoutFeedTab() {
           )}
         </div>
       </div>
+
+      {/* AI Feedback Panel - Separate from video */}
+      {isRecording && feedback && (
+        <div className="mb-6 p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800">
+          <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 mb-4">AI Feedback</h3>
+          <div className="space-y-3">
+            {feedback.mode && (
+              <div>
+                <p className="text-sm text-blue-700 dark:text-blue-300 font-semibold mb-1">Form Analysis</p>
+                <p className="text-base text-blue-900 dark:text-blue-100">{feedback.mode}</p>
+              </div>
+            )}
+            {feedback.stage && (
+              <div>
+                <p className="text-sm text-blue-700 dark:text-blue-300 font-semibold mb-1">Stage</p>
+                <p className="text-base text-blue-900 dark:text-blue-100">{feedback.stage}</p>
+              </div>
+            )}
+            {feedback.aiScore !== undefined && feedback.aiScore > 0 && (
+              <div>
+                <p className="text-sm text-blue-700 dark:text-blue-300 font-semibold mb-1">Form Score</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-green-500 h-2 rounded-full transition-all"
+                      style={{ width: `${Math.round(feedback.aiScore * 100)}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-base font-bold text-blue-900 dark:text-blue-100">
+                    {Math.round(feedback.aiScore * 100)}%
+                  </span>
+                </div>
+              </div>
+            )}
+            {feedback.coaches && Array.isArray(feedback.coaches) && feedback.coaches.length > 0 && (
+              <div>
+                <p className="text-sm text-blue-700 dark:text-blue-300 font-semibold mb-2">Coaching Tips</p>
+                <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
+                  {feedback.coaches.map((tip, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="text-blue-500 flex-shrink-0">•</span>
+                      <span>{tip}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Control Buttons */}
       <div className="flex gap-3 mb-6">

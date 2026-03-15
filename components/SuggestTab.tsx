@@ -78,13 +78,13 @@ export default function SuggestTab() {
         data = text.startsWith("{") ? JSON.parse(text) : {};
       } catch {
         throw new Error(
-          text.includes("GEMINI_API_KEY") || text.includes("missing")
-            ? "API key not configured. Add GEMINI_API_KEY to .env.local"
+          text.includes("OPENROUTER_API_KEY") || text.includes("missing")
+            ? "API key not configured. Add OPENROUTER_API_KEY to .env.local"
             : "Suggestion failed — server returned an invalid response"
         );
       }
       if (!res.ok) throw new Error(data.error || "Failed to get suggestions");
-      if (!data.suggestions && res.ok) throw new Error("Invalid response. Check that GEMINI_API_KEY is set in .env.local");
+      if (!data.suggestions && res.ok) throw new Error("Invalid response. Check that OPENROUTER_API_KEY is set in .env.local");
 
       setSuggestions(data.suggestions || []);
     } catch (err) {
